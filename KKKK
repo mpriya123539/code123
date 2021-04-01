@@ -1,0 +1,129 @@
+# Variable Group 'keyvault-image' was defined in the Variables tab
+
+jobs:
+
+- job: Job_1
+
+  displayName: vm build
+
+  timeoutInMinutes: 120
+
+  variables:
+
+  - template: variables.yml
+
+  pool:
+
+    vmImage: 'vs2017-win2016'
+
+  steps:
+
+  - checkout: self
+
+  - task: CopyFiles@2
+
+    displayName: 'Copy Files to: $(Build.ArtifactStagingDirectory)'
+
+    inputs:
+
+      SourceFolder: 'tabulo/centos'
+
+      TargetFolder: $(Build.ArtifactStagingDirectory)
+
+  - task: replacetokens@3
+
+    displayName: Replace tokens in *.json **/*.sh
+
+    inputs:
+
+      rootDirectory: 'tabulo/centos'
+
+      targetFiles: |
+
+        *.tf
+
+        **/*.tf
+
+        **/**/*.tf
+
+        **/**/**/*.tf
+
+        *.sh
+
+        **/*.sh
+
+        **/**/*.sh
+
+        **/**/**/*.sh
+
+      encoding: 'auto'
+
+      writeBOM: true
+
+      actionOnMissing: 'warn'
+
+      keepToken: false
+
+      tokenPrefix: '#{'
+
+      tokenSuffix: '}#'
+
+      useLegacyPattern: false
+
+      enableTelemetry: true
+
+  - task: 'ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0'
+
+    displayName: 'Install Terraform 0.13.4'
+
+    inputs:
+
+      terraformVersion: '0.13.4'
+
+  - task: 'charleszipp.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli.TerraformCLI@0'
+
+    displayName: 'terraform init'
+
+    inputs:
+
+      command: 'init'
+
+      workingDirectory: 'tabulo/centos/vmbuild'
+
+  - task: 'charleszipp.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli.TerraformCLI@0'
+
+    displayName: 'terraform plan'
+
+    inputs:
+
+      command: 'plan'
+
+      workingDirectory: 'tabulo/centos/vmbuild'
+
+      environmentServiceName: 'aims-sandbox (ffeb1094-7f8c-42b6-8ad7-7a16287b69d8)'
+
+  - task: 'charleszipp.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli.TerraformCLI@0'
+
+    displayName: 'terraform apply'
+
+    inputs:
+
+      command: 'apply'
+
+      workingDirectory: 'tabulo/centos/vmbuild'
+
+      environmentServiceName: 'aims-sandbox (ffeb1094-7f8c-42b6-8ad7-7a16287b69d8)'
+
+  - task: AzureCLI@2
+
+    displayName: 'post script'
+
+    inputs:
+
+      azureSubscription: 'aims-sandbox (ffeb1094-7f8c-42b6-8ad7-7a16287b69d8)'
+
+      scriptType: 'bash'
+
+      scriptLocation: 'inlineScript'
+
+      inlineScript: 'az vm run-command invoke -g $(resourcegroupname) -n $(vmname) --command-id RunShellScript --scripts "sudo yum update -y && sudo yum install -y nginx"'
